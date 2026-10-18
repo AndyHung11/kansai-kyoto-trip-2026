@@ -475,7 +475,7 @@ ul.unv{margin:0;padding-left:18px;font-size:13px;color:var(--text2);columns:2 30
     "subtitle": "名古屋進出｜HINOTORI特急・嵐電小火車・道頓堀遊船｜京都主廚鐵板燒晚宴・金閣寺・嵐山楓紅｜中文版",
     "language": "zh-TW",
     "userLanguage": "zh-TW",
-    "generatedAt": "2026-10-18T21:07:28+08:00",
+    "generatedAt": "2026-10-18T21:12:54+08:00",
     "generator": "trip-planner skill",
     "assumptions": [
       "JX838／JX839已完成訂位：11/13–19來回，兩人合計含稅NT$29,968，已確認。",
@@ -6948,6 +6948,82 @@ function init() {
   }
 }
 init();
+})();
+</script>
+
+<script>
+/* User-requested custom enhancement (2026-10-18): click a budget category bar to expand its itemized line list.
+   Reads ground-truth data straight from #trip-data (not DOM text matching) so it is robust even for categories
+   without a translation label in the template (e.g. "flight"). Deliberately deviates from the skill's
+   immutable-template default at explicit user request, for this file only. */
+(function(){
+  function fmtNT(n){ return 'NT$' + Math.round(n).toLocaleString('en-US'); }
+  function getData(){
+    var el = document.getElementById('trip-data');
+    if (!el) return null;
+    try { return JSON.parse(el.textContent); } catch (e) { return null; }
+  }
+  function ratesOf(D){
+    var r = { TWD: 1 };
+    if (D.journey && D.journey.fx && isFinite(+D.journey.fx.rate)) r.JPY = +D.journey.fx.rate;
+    (D.journey && D.journey.currencies || []).forEach(function(c){ if (c && c.code && isFinite(+c.rate)) r[c.code] = +c.rate; });
+    return r;
+  }
+  function categorize(D){
+    var rates = ratesOf(D), lines = (D.budget && D.budget.lines) || [];
+    var people = ((D.traveler && D.traveler.party && (+D.traveler.party.adults || 0) + (+D.traveler.party.children || 0) + (+D.traveler.party.seniors || 0)) || 2);
+    var cats = {};
+    lines.forEach(function(ln){
+      var a = ln.amount; if (!a || !isFinite(+a.amount)) return;
+      var mult = a.per === 'person' ? people : 1;
+      var rate = rates[a.currency]; if (!isFinite(rate)) return;
+      var twd = (+a.amount) * mult * rate;
+      (cats[ln.category] = cats[ln.category] || []).push({ label: ln.label, twd: twd });
+    });
+    return cats;
+  }
+  document.addEventListener('click', function(e){
+    var bar = e.target && e.target.closest ? e.target.closest('.bars > .bar') : null;
+    if (!bar) return;
+    var next = bar.nextElementSibling;
+    if (next && next.classList && next.classList.contains('bar-detail')) { next.remove(); return; }
+    var parent = bar.parentElement;
+    if (!parent) return;
+    parent.querySelectorAll('.bar-detail').forEach(function(d){ d.remove(); });
+    var D = getData();
+    if (!D) return;
+    var cats = categorize(D);
+    var sortedCats = Object.keys(cats).sort(function(a, b){
+      var ta = cats[a].reduce(function(s, x){ return s + x.twd; }, 0);
+      var tb = cats[b].reduce(function(s, x){ return s + x.twd; }, 0);
+      return tb - ta;
+    });
+    var idx = Array.prototype.indexOf.call(parent.children, bar);
+    var items = cats[sortedCats[idx]] || [];
+    var detail = document.createElement('div');
+    detail.className = 'bar-detail';
+    detail.style.cssText = 'font-size:12.5px;color:var(--text2);background:var(--hover);border-radius:8px;padding:8px 10px';
+    if (items.length) {
+      var ul = document.createElement('ul');
+      ul.style.cssText = 'margin:0;padding-left:18px;display:grid;gap:3px';
+      items.forEach(function(it){
+        var li = document.createElement('li');
+        li.style.cssText = 'display:flex;justify-content:space-between;gap:10px';
+        var l = document.createElement('span'); l.textContent = it.label;
+        var a = document.createElement('span'); a.textContent = fmtNT(it.twd); a.style.whiteSpace = 'nowrap';
+        li.appendChild(l); li.appendChild(a);
+        ul.appendChild(li);
+      });
+      detail.appendChild(ul);
+    } else {
+      detail.textContent = '\u6c92\u6709\u627e\u5230\u9019\u500b\u5206\u985e\u7684\u660e\u7d30\u3002';
+    }
+    bar.insertAdjacentElement('afterend', detail);
+  }, true);
+  document.addEventListener('mouseover', function(e){
+    var bar = e.target && e.target.closest ? e.target.closest('.bars > .bar') : null;
+    if (bar) bar.style.cursor = 'pointer';
+  });
 })();
 </script>
 </body>
